@@ -30,32 +30,12 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         val activity = this
-        // TODO: Refactor this permission checking logic, it's rather repetitive
-        // probably a component with "permissionsReady" flag is a better alternative
-        var singletons: Singletons? = if (arePermissionsReady(activity)) getSingletons(activity) else null
 
         setContent {
             SocialmaxxingTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Column (modifier = Modifier.padding(innerPadding)) {
-                        Text(text = if (singletons == null) "we need your permission" else "everything seems to be good")
-                        // TODO: Don't show this when permissions are ok
-                        RequestBluetoothButton(
-                            onClick = {
-                                requestBluetoothPermissions(activity)
-                                if (arePermissionsReady(activity)) {
-                                    singletons = getSingletons(activity)
-                                    Toast.makeText(
-                                        activity,
-                                        "Everything ok with permissions!",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                    Log.d("tmp_tag", "bluetooth permissions are ok!")
-                                } else {
-                                    Log.d("tmp_tag", "couldn't retrieve singletons, handle this gracefully!")
-                                }
-                            }
-                        )
+                    Box (modifier = Modifier.padding(innerPadding)) {
+                        MainUIComponent(activity)
                     }
                 }
             }
@@ -63,16 +43,3 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-fun arePermissionsReady(activity: Activity): Boolean {
-    return (ContextCompat.checkSelfPermission(
-        activity,
-        Manifest.permission.BLUETOOTH_CONNECT,
-    ) == PackageManager.PERMISSION_GRANTED)
-}
-
-@Composable
-fun RequestBluetoothButton(onClick: () -> Unit) {
-    Button(onClick = onClick) {
-        Text(text = "Ask for Bluetooth")
-    }
-}
