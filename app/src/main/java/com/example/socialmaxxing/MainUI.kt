@@ -50,12 +50,13 @@ fun MainUIComponent(activity: Activity) {
         ) {
             Text(text = "Ask for bluetooth")
         }
+
+        if (areAllPermissionsAccepted.value) FindDevicesScreen(onConnect = {})
     }
 }
 
 fun arePermissionsReady(activity: Activity): Boolean {
-    return (ContextCompat.checkSelfPermission(
-        activity,
-        Manifest.permission.BLUETOOTH_CONNECT,
-    ) == PackageManager.PERMISSION_GRANTED)
+    return requiredPermissions
+        .map({ permission -> ContextCompat.checkSelfPermission(activity, permission)})
+        .all({ result -> result == PackageManager.PERMISSION_GRANTED })
 }
