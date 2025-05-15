@@ -2,11 +2,22 @@ package com.example.socialmaxxing
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.Activity
+import android.app.Service
+import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothGattServer
+import android.bluetooth.BluetoothGattServerCallback
 import android.bluetooth.BluetoothManager
+import android.bluetooth.le.AdvertiseCallback
+import android.bluetooth.le.AdvertiseData
+import android.bluetooth.le.AdvertiseSettings
+import android.bluetooth.le.BluetoothLeAdvertiser
+import android.bluetooth.le.BluetoothLeScanner
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
+import android.content.Intent
 import android.os.Build
 import android.os.ParcelUuid
 import android.util.Log
@@ -50,6 +61,71 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import kotlinx.coroutines.delay
+
+// FIXME: The hardcoded values should look the same as bytestring in hex
+val vendorId = arrayOf<Byte>(
+    0xe5u.toByte(),
+    0x7du.toByte(),
+    0x56u.toByte(),
+    0xbeu.toByte(),
+    0x1fu.toByte(),
+    0xd5u.toByte(),
+    0x0du.toByte(),
+    0x3bu.toByte(),
+)
+
+data class BLEAdvertisementPayload (
+    val deviceId: Array<Byte>,
+    val timestamp: Array<Byte>,
+)
+
+fun bleAdvertisementPayloadToBytes(payload: BLEAdvertisementPayload): ByteArray {
+    return (vendorId + payload.deviceId + payload.timestamp).toByteArray()
+}
+
+val thisAdvertiseCallback = object : AdvertiseCallback() {
+    override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
+        Log.d(TAG, "Successfully started advertising")
+    }
+
+    override fun onStartFailure(errorCode: Int) {
+        val msg = when (errorCode) {
+            ADVERTISE_FAILED_DATA_TOO_LARGE -> "advertisement too large"
+            ADVERTISE_FAILED_TOO_MANY_ADVERTISERS -> "too many advertisers"
+            ADVERTISE_FAILED_ALREADY_STARTED -> "already started"
+            ADVERTISE_FAILED_INTERNAL_ERROR -> "internal error"
+            ADVERTISE_FAILED_FEATURE_UNSUPPORTED -> "feature unsupported"
+            else -> "unknown error"
+        }
+        Log.d(TAG, "failed to start advertising, error: $msg")
+    }
+}
+
+@RequiresPermission(Manifest.permission.BLUETOOTH_ADVERTISE)
+fun startAdvertising(advertiser: BluetoothLeAdvertiser, payload: BLEAdvertisementPayload) {
+    val settings = AdvertiseSettings.Builder()
+        .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_BALANCED)
+        .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM)
+        .setConnectable(true)
+        .setTimeout(0)
+        .build()
+
+    val advertisementBytes = bleAdvertisementPayloadToBytes(payload)
+
+    // FIXME: That random 123
+    val data = AdvertiseData.Builder()
+        // NOTE: This data bleeds into our 31 byte budget, we don't need this
+        .setIncludeDeviceName(false)
+        .addManufacturerData(123, advertisementBytes)
+        .build()
+
+    advertiser.startAdvertising(settings, data, thisAdvertiseCallback)
+}
+
+@RequiresPermission(Manifest.permission.BLUETOOTH_ADVERTISE)
+fun stopAdvertising(advertiser: BluetoothLeAdvertiser) {
+    advertiser.stopAdvertising(thisAdvertiseCallback)
+}
 
 @RequiresPermission(allOf = [
     Manifest.permission.BLUETOOTH_SCAN,

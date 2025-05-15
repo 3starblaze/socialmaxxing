@@ -6,10 +6,12 @@ import android.app.Activity
 import android.content.pm.PackageManager
 import android.util.Log
 import android.widget.Toast
+import androidx.annotation.RequiresPermission
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.core.content.ContextCompat
@@ -42,16 +44,50 @@ fun MainUIComponent(activity: Activity) {
                         "Everything ok with permissions!",
                         Toast.LENGTH_SHORT
                     ).show()
-                    Log.d("tmp_tag", "bluetooth permissions are ok!")
+                    Log.d(TAG, "bluetooth permissions are ok!")
                 } else {
-                    Log.d("tmp_tag", "couldn't retrieve singletons, handle this gracefully!")
+                    Log.d(TAG, "couldn't retrieve singletons, handle this gracefully!")
                 }
             },
         ) {
             Text(text = "Ask for bluetooth")
         }
 
+        if (areAllPermissionsAccepted.value and (singletons != null)) {
+            AdvertiseButton(singletons as Singletons)
+        }
+
         if (areAllPermissionsAccepted.value) FindDevicesScreen(onConnect = {})
+    }
+}
+
+@SuppressLint("MissingPermission")
+@Composable
+fun AdvertiseButton(singletons: Singletons) {
+    // FIXME: Populate this payload properly
+    val samplePayload = BLEAdvertisementPayload(
+        deviceId = arrayOf(1, 1, 1, 1, 1, 1, 1, 1),
+        timestamp = arrayOf(2, 2, 2, 2, 2, 2, 2, 2),
+    )
+
+    val isBLEAdvertisingOn = remember { mutableStateOf(false) }
+
+    LaunchedEffect(isBLEAdvertisingOn.value) {
+        if (isBLEAdvertisingOn.value) {
+            startAdvertising(singletons.advertiser, samplePayload)
+        } else {
+            stopAdvertising(singletons.advertiser)
+        }
+    }
+
+    Button(
+        onClick = {
+            isBLEAdvertisingOn.value = !isBLEAdvertisingOn.value
+        }
+    ) {
+        Text(
+            text = "${if (isBLEAdvertisingOn.value) "stop" else "start"} sample BLE advertisement"
+        )
     }
 }
 
