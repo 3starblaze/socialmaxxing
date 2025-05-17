@@ -15,12 +15,14 @@ import android.bluetooth.le.AdvertiseSettings
 import android.bluetooth.le.BluetoothLeAdvertiser
 import android.bluetooth.le.BluetoothLeScanner
 import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Intent
 import android.os.Build
 import android.os.ParcelUuid
 import android.util.Log
+import android.util.SparseArray
 import androidx.annotation.RequiresApi
 import androidx.annotation.RequiresPermission
 import androidx.compose.foundation.clickable
@@ -44,8 +46,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -57,21 +61,32 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import kotlinx.coroutines.delay
 
-// FIXME: The hardcoded values should look the same as bytestring in hex
+/**
+ * The vendor id that is used to store our data.
+ *
+ * This ID shouldn't be assigned to any company (as defined in Bluetooth assigned numbers)
+ */
+const val FALLBACK_VENDOR_ID = 0xffff
+
+val defaultScanFilter: ScanFilter = ScanFilter.Builder()
+    .setManufacturerData(FALLBACK_VENDOR_ID, byteArrayOf(), byteArrayOf())
+    .build()
+
 val vendorId = arrayOf<Byte>(
-    0xe5u.toByte(),
-    0x7du.toByte(),
-    0x56u.toByte(),
-    0xbeu.toByte(),
-    0x1fu.toByte(),
-    0xd5u.toByte(),
-    0x0du.toByte(),
-    0x3bu.toByte(),
+    0xe5.toByte(),
+    0x7d.toByte(),
+    0x56.toByte(),
+    0xbe.toByte(),
+    0x1f.toByte(),
+    0xd5.toByte(),
+    0x0d.toByte(),
+    0x3b.toByte(),
 )
 
 data class BLEAdvertisementPayload (
@@ -112,11 +127,10 @@ fun startAdvertising(advertiser: BluetoothLeAdvertiser, payload: BLEAdvertisemen
 
     val advertisementBytes = bleAdvertisementPayloadToBytes(payload)
 
-    // FIXME: That random 123
     val data = AdvertiseData.Builder()
         // NOTE: This data bleeds into our 31 byte budget, we don't need this
         .setIncludeDeviceName(false)
-        .addManufacturerData(123, advertisementBytes)
+        .addManufacturerData(FALLBACK_VENDOR_ID, advertisementBytes)
         .build()
 
     advertiser.startAdvertising(settings, data, thisAdvertiseCallback)
@@ -136,12 +150,16 @@ internal fun FindDevicesScreen(onConnect: (BluetoothDevice) -> Unit) {
     var scanning by remember {
         mutableStateOf(true)
     }
-    val devices = remember {
-        mutableStateListOf<BluetoothDevice>()
+
+    data class DisplayItem(
+        val device: BluetoothDevice,
+        val manufacturerData: SparseArray<ByteArray>?,
+    )
+
+    val itemsToDisplay = remember {
+        mutableStateMapOf<BluetoothDevice, DisplayItem>()
     }
-    val sampleServerDevices = remember {
-        mutableStateListOf<BluetoothDevice>()
-    }
+
     val scanSettings: ScanSettings = ScanSettings.Builder()
         .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
         .setScanMode(ScanSettings.SCAN_MODE_BALANCED)
@@ -157,8 +175,14 @@ internal fun FindDevicesScreen(onConnect: (BluetoothDevice) -> Unit) {
                 Log.w("FindBLEDevicesSample", "Scan failed with error: $it")
             },
             onDeviceFound = { scanResult ->
-                if (!devices.contains(scanResult.device)) {
-                    devices.add(scanResult.device)
+                Log.d(TAG, "found device")
+                val device = scanResult.device
+
+                if (!itemsToDisplay.contains(device)) {
+                    itemsToDisplay.put(device, DisplayItem(
+                        device = scanResult.device,
+                        manufacturerData = scanResult.scanRecord?.manufacturerSpecificData,
+                    ))
                 }
             },
         )
@@ -184,7 +208,7 @@ internal fun FindDevicesScreen(onConnect: (BluetoothDevice) -> Unit) {
             } else {
                 IconButton(
                     onClick = {
-                        devices.clear()
+                        itemsToDisplay.clear()
                         scanning = true
                     },
                 ) {
@@ -195,60 +219,38 @@ internal fun FindDevicesScreen(onConnect: (BluetoothDevice) -> Unit) {
 
         LazyColumn(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            if (devices.isEmpty()) {
+            if (itemsToDisplay.isEmpty()) {
                 item {
                     Text(text = "No devices found")
                 }
             }
-            items(devices) { item ->
-                BluetoothDeviceItem(
-                    bluetoothDevice = item,
-                    isSampleServer = sampleServerDevices.contains(item),
-                    onConnect = onConnect,
-                )
+
+            // FIXME: manufacturer data content not really visible
+            items(itemsToDisplay.values.toList()) { item ->
+                Column() {
+                    Row(
+                        modifier = Modifier
+                            .padding(vertical = 8.dp)
+                            .fillMaxWidth(),
+
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            item.device.name ?: "N/A"
+                        )
+                        Text(item.device.address)
+                    }
+                    Text(
+                        "${item.manufacturerData ?: "no manufacturer data"}",
+                        style = TextStyle(fontSize = 12.sp)
+                    )
+                }
             }
         }
     }
 
-}
-
-@RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-@Composable
-internal fun BluetoothDeviceItem(
-    bluetoothDevice: BluetoothDevice,
-    isSampleServer: Boolean = false,
-    onConnect: (BluetoothDevice) -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .padding(vertical = 8.dp)
-            .fillMaxWidth()
-            .clickable { onConnect(bluetoothDevice) },
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(
-            if (isSampleServer) {
-                "GATT Sample server"
-            } else {
-                bluetoothDevice.name ?: "N/A"
-            },
-            style = if (isSampleServer) {
-                TextStyle(fontWeight = FontWeight.Bold)
-            } else {
-                TextStyle(fontWeight = FontWeight.Normal)
-            },
-        )
-        Text(bluetoothDevice.address)
-        val state = when (bluetoothDevice.bondState) {
-            BluetoothDevice.BOND_BONDED -> "Paired"
-            BluetoothDevice.BOND_BONDING -> "Pairing"
-            else -> "None"
-        }
-        Text(text = state)
-
-    }
 }
 
 @RequiresPermission(Manifest.permission.BLUETOOTH_SCAN)
@@ -285,7 +287,11 @@ private fun BluetoothScanEffect(
         val observer = LifecycleEventObserver { _, event ->
             // Start scanning once the app is in foreground and stop when in background
             if (event == Lifecycle.Event.ON_START) {
-                adapter.bluetoothLeScanner.startScan(null, scanSettings, leScanCallback)
+                adapter.bluetoothLeScanner.startScan(
+                    listOf(defaultScanFilter),
+                    scanSettings,
+                    leScanCallback
+                )
             } else if (event == Lifecycle.Event.ON_STOP) {
                 adapter.bluetoothLeScanner.stopScan(leScanCallback)
             }
