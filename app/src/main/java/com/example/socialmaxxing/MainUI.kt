@@ -66,8 +66,8 @@ fun MainUIComponent(activity: Activity) {
 fun AdvertiseButton(singletons: Singletons) {
     // FIXME: Populate this payload properly
     val samplePayload = BLEAdvertisementPayload(
-        deviceId = arrayOf(1, 1, 1, 1, 1, 1, 1, 1),
-        timestamp = arrayOf(2, 2, 2, 2, 2, 2, 2, 2),
+        deviceId = listOf(1, 1, 1, 1, 1, 1, 1, 1),
+        timestamp = listOf(2, 2, 2, 2, 2, 2, 2, 2),
     )
 
     val isBLEAdvertisingOn = remember { mutableStateOf(false) }

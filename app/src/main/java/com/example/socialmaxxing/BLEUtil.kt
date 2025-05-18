@@ -78,7 +78,7 @@ val defaultScanFilter: ScanFilter = ScanFilter.Builder()
     .setManufacturerData(FALLBACK_VENDOR_ID, byteArrayOf(), byteArrayOf())
     .build()
 
-val vendorId = arrayOf<Byte>(
+val vendorId = byteArrayOf(
     0xe5.toByte(),
     0x7d.toByte(),
     0x56.toByte(),
@@ -90,12 +90,34 @@ val vendorId = arrayOf<Byte>(
 )
 
 data class BLEAdvertisementPayload (
-    val deviceId: Array<Byte>,
-    val timestamp: Array<Byte>,
+    val deviceId: List<Byte>,
+    val timestamp: List<Byte>,
 )
 
+const val VENDOR_ID_SIZE = 8
+const val DEVICE_ID_SIZE = 8
+const val TIMESTAMP_SIZE = 8
+const val BYTE_PAYLOAD_SIZE = VENDOR_ID_SIZE + DEVICE_ID_SIZE + TIMESTAMP_SIZE
+
+fun decodeBleAdvertisement(bytes: ByteArray): BLEAdvertisementPayload? {
+    if (bytes.size !== BYTE_PAYLOAD_SIZE) return null
+
+    // NOTE: Check that vendorId matches
+    for (i in vendorId.indices) {
+        if (bytes[i] != vendorId[i]) return null;
+    }
+
+    val deviceIdIndex = VENDOR_ID_SIZE
+    val timestampIndex = deviceIdIndex + DEVICE_ID_SIZE
+
+    return BLEAdvertisementPayload(
+        deviceId = bytes.drop(deviceIdIndex).take(DEVICE_ID_SIZE),
+        timestamp = bytes.drop(timestampIndex).take(TIMESTAMP_SIZE),
+    )
+}
+
 fun bleAdvertisementPayloadToBytes(payload: BLEAdvertisementPayload): ByteArray {
-    return (vendorId + payload.deviceId + payload.timestamp).toByteArray()
+    return vendorId + payload.deviceId + payload.timestamp
 }
 
 val thisAdvertiseCallback = object : AdvertiseCallback() {
@@ -154,6 +176,7 @@ internal fun FindDevicesScreen(onConnect: (BluetoothDevice) -> Unit) {
     data class DisplayItem(
         val device: BluetoothDevice,
         val manufacturerData: SparseArray<ByteArray>?,
+        val appPayload: BLEAdvertisementPayload?,
     )
 
     val itemsToDisplay = remember {
@@ -179,9 +202,19 @@ internal fun FindDevicesScreen(onConnect: (BluetoothDevice) -> Unit) {
                 val device = scanResult.device
 
                 if (!itemsToDisplay.contains(device)) {
+                    val appPayloadBytes: ByteArray? = scanResult
+                        .scanRecord
+                        ?.manufacturerSpecificData
+                        ?.get(FALLBACK_VENDOR_ID)
+
+                    val appPayload = if (appPayloadBytes != null)
+                        decodeBleAdvertisement(appPayloadBytes)
+                        else null
+
                     itemsToDisplay.put(device, DisplayItem(
                         device = scanResult.device,
                         manufacturerData = scanResult.scanRecord?.manufacturerSpecificData,
+                        appPayload = appPayload
                     ))
                 }
             },
@@ -246,6 +279,12 @@ internal fun FindDevicesScreen(onConnect: (BluetoothDevice) -> Unit) {
                         "${item.manufacturerData ?: "no manufacturer data"}",
                         style = TextStyle(fontSize = 12.sp)
                     )
+                    if (item.appPayload != null) {
+                        Text("deviceId: ${item.appPayload.deviceId}")
+                        Text("timestamp: ${item.appPayload.timestamp}")
+                    } else {
+                        Text("Payload could not be decoded")
+                    }
                 }
             }
         }
