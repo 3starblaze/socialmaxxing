@@ -4,18 +4,32 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.pm.PackageManager
+import android.os.Build
 import android.util.Log
 import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.annotation.RequiresPermission
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import java.time.LocalTime
 
+@Composable
+fun Title(text: String) {
+    Text(text, fontSize = 30.sp)
+}
+
+@RequiresApi(Build.VERSION_CODES.O)
 @SuppressLint("MissingPermission")
 @Composable
 fun MainUIComponent(activity: Activity) {
@@ -24,7 +38,17 @@ fun MainUIComponent(activity: Activity) {
         getSingletons(activity)
         else null
 
+    val deviceId = 0xdeadbeef
+    val time = LocalTime.now()
+    val payload = makeBleAdvertisementPayload(time, deviceId)
+
     Column {
+        PayloadInfo(payload)
+
+        Box(Modifier.padding(0.dp, 8.dp))
+
+        Title("Bluetooth Info")
+
         Text(
             text = if (areAllPermissionsAccepted.value)
                 "All permissions are granted"
@@ -58,6 +82,17 @@ fun MainUIComponent(activity: Activity) {
         }
 
         if (areAllPermissionsAccepted.value) FindDevicesScreen(onConnect = {})
+    }
+}
+
+@OptIn(ExperimentalStdlibApi::class)
+@RequiresApi(Build.VERSION_CODES.O)
+@Composable
+fun PayloadInfo(payload: BLEAdvertisementPayload) {
+    Column {
+        Title("Payload Info")
+        Text("id: ${payload.deviceId.toByteArray().toHexString()}")
+        Text("Time: ${payload.timestamp}")
     }
 }
 
