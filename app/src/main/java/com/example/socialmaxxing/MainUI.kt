@@ -78,7 +78,7 @@ fun MainUIComponent(activity: Activity) {
         }
 
         if (areAllPermissionsAccepted.value and (singletons != null)) {
-            AdvertiseButton(singletons as Singletons)
+            AdvertiseButton(singletons as Singletons, payload)
         }
 
         if (areAllPermissionsAccepted.value) FindDevicesScreen(onConnect = {})
@@ -98,18 +98,12 @@ fun PayloadInfo(payload: BLEAdvertisementPayload) {
 
 @SuppressLint("MissingPermission")
 @Composable
-fun AdvertiseButton(singletons: Singletons) {
-    // FIXME: Populate this payload properly
-    val samplePayload = BLEAdvertisementPayload(
-        deviceId = listOf(1, 1, 1, 1, 1, 1, 1, 1),
-        timestamp = listOf(2, 2, 2, 2, 2, 2, 2, 2),
-    )
-
+fun AdvertiseButton(singletons: Singletons, payload: BLEAdvertisementPayload) {
     val isBLEAdvertisingOn = remember { mutableStateOf(false) }
 
     LaunchedEffect(isBLEAdvertisingOn.value) {
         if (isBLEAdvertisingOn.value) {
-            startAdvertising(singletons.advertiser, samplePayload)
+            startAdvertising(singletons.advertiser, payload)
         } else {
             stopAdvertising(singletons.advertiser)
         }
