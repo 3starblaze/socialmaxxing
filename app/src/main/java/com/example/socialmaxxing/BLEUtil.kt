@@ -93,6 +93,12 @@
         val timestamp: List<Byte>,
     )
 
+    data class DisplayItem(
+        val device: BluetoothDevice,
+        val manufacturerData: SparseArray<ByteArray>?,
+        val appPayload: BLEAdvertisementPayload?,
+    )
+
     const val VENDOR_ID_SIZE = 8
     const val DEVICE_ID_SIZE = 8
     const val TIMESTAMP_SIZE = 8
@@ -102,10 +108,8 @@
     fun bytesToLong(bytes: ByteArray): kotlin.Long {
         if (bytes.size !== Long.BYTES) throw Error("bytes size doesn't match Long size!")
 
-        val buffer = ByteBuffer.allocate(Long.BYTES)
-        buffer.put(bytes)
-
-        return buffer.getLong()
+        val buffer = ByteBuffer.wrap(bytes)
+        return buffer.long
     }
 
     fun longToBytes(longVal: kotlin.Long): ByteArray {
@@ -117,8 +121,6 @@
     @RequiresApi(Build.VERSION_CODES.O)
     fun localTimeToPayloadTimestamp(time: LocalTime): ByteArray {
         val delta = time.second + time.minute * 60 + time.hour * 60 * 60
-
-        if (Long.BYTES != TIMESTAMP_SIZE) throw Error("Expected Long.BYTES == TIMESTAMP_SIZE")
 
         return longToBytes(delta.toLong())
     }
@@ -211,16 +213,11 @@
         Manifest.permission.BLUETOOTH_CONNECT,
     ])
     @Composable
-    internal fun FindDevicesScreen(onConnect: (BluetoothDevice) -> Unit) {
+    internal fun FindDevicesScreen(onConnect: (BluetoothDevice) -> Unit,
+                                   deviceOwnerPayload: BLEAdvertisementPayload) {
         var scanning by remember {
             mutableStateOf(true)
         }
-
-        data class DisplayItem(
-            val device: BluetoothDevice,
-            val manufacturerData: SparseArray<ByteArray>?,
-            val appPayload: BLEAdvertisementPayload?,
-        )
 
         val itemsToDisplay = remember {
             mutableStateMapOf<BluetoothDevice, DisplayItem>()
@@ -297,6 +294,15 @@
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
+                val sortedDeviceList = if (itemsToDisplay.isEmpty()) {
+                    emptyList<DisplayItem>()
+                } else {
+                    itemsToDisplay.values
+                        .sortedBy {
+                            payloadTimestampToLocalTime(it.appPayload!!.timestamp.toByteArray()) ?: LocalTime.MAX
+                        }
+                }
+
                 if (itemsToDisplay.isEmpty()) {
                     item {
                         Text(text = "No devices found")
@@ -304,7 +310,7 @@
                 }
 
                 // FIXME: manufacturer data content not really visible
-                items(itemsToDisplay.values.toList()) { item ->
+                items(sortedDeviceList) { item ->
                     Column() {
                         Row(
                             modifier = Modifier
@@ -330,6 +336,9 @@
                         }
                     }
                 }
+
+                 // decideSwapOrder(sortedDeviceList, deviceOwnerPayload)
+                // swapMessages(deviceOwnerPayload, item.appPayload)
             }
         }
 
