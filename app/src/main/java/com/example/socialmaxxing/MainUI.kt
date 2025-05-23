@@ -81,7 +81,7 @@ fun MainUIComponent(activity: Activity) {
             AdvertiseButton(singletons as Singletons, payload)
         }
 
-        if (areAllPermissionsAccepted.value) FindDevicesScreen(onConnect = {})
+        if (areAllPermissionsAccepted.value) FindDevicesScreen(onConnect = {}, payload)
     }
 }
 
@@ -93,6 +93,7 @@ fun PayloadInfo(payload: BLEAdvertisementPayload) {
         Title("Payload Info")
         Text("id: ${payload.deviceId.toByteArray().toHexString()}")
         Text("Time: ${payload.timestamp}")
+//        Text("Actual time: ${payloadTimestampToLocalTime(payload.timestamp.toByteArray())}")
     }
 }
 
