@@ -23,24 +23,26 @@ fun CollectedMessagesView(singletons: Singletons) {
         messages.value = singletons.database.collectedMessageDao().getAll()
     }
 
-    Text(
-        text = "Collected messages",
-        style = Typography.titleLarge,
-    )
-    LazyColumn {
-        if (messages.value === null) {
-            item {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-            }
-        } else if (messages.value!!.isEmpty()) {
-            item {
-                Text("You have no messages...")
-            }
-        } else {
-            items(messages.value!!) { item ->
-                Column {
-                    Text("${item.deviceId}")
-                    Text("${item.messageText}")
+    Column {
+        Text(
+            text = "Collected messages",
+            style = Typography.titleLarge,
+        )
+        LazyColumn {
+            if (messages.value === null) {
+                item {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                }
+            } else if (messages.value!!.isEmpty()) {
+                item {
+                    Text("You have no messages...")
+                }
+            } else {
+                items(messages.value!!) { item ->
+                    Column {
+                        Text("${item.deviceId}")
+                        Text("${item.messageText}")
+                    }
                 }
             }
         }
