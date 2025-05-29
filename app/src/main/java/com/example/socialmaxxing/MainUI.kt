@@ -19,6 +19,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -151,7 +155,22 @@ suspend fun getSingletonData(database: AppDatabase): SingletonData {
 
 @Composable
 fun ThisDeviceMessageSection(singletonData: SingletonData) {
-    Text(text = "msg: ${singletonData.currentMessage}")
+    val msg = singletonData.currentMessage
+
+    Column() {
+        Text(buildAnnotatedString {
+            append("msg: ")
+            if (msg.isEmpty()) {
+                withStyle(style = SpanStyle(color = Color.Gray)) {
+                    append("<empty>")
+                }
+            } else {
+                append(msg)
+            }
+        })
+        Text(text = "id: ${singletonData.deviceId}")
+        Text(text = "updatedAt: ${singletonData.updatedAt}")
+    }
 }
 
 fun arePermissionsReady(activity: Activity): Boolean {
