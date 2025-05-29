@@ -77,6 +77,10 @@ fun MainUIComponent(activity: Activity) {
 
         Box(Modifier.padding(0.dp, 8.dp))
 
+        if (singletons.value !== null) {
+            CollectedMessagesView(singletons.value!!)
+        }
+
         Title("Bluetooth Info")
 
         Text(

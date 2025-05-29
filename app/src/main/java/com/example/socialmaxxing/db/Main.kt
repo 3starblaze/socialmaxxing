@@ -26,10 +26,17 @@ class Converters {
     }
 }
 
-@Database(entities = [SingletonData::class], version = 1)
+@Database(
+    entities = [
+      SingletonData::class,
+      CollectedMessage::class,
+    ],
+    version = 2,
+)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun singletonDataDao(): SingletonDataDao
+    abstract fun collectedMessageDao(): CollectedMessageDao
 }
 
 @RequiresApi(Build.VERSION_CODES.O)
