@@ -8,6 +8,8 @@ import android.bluetooth.le.BluetoothLeAdvertiser
 import android.bluetooth.le.BluetoothLeScanner
 import android.content.Intent
 import androidx.annotation.RequiresPermission
+import com.example.socialmaxxing.db.AppDatabase
+import com.example.socialmaxxing.db.getDb
 
 val TAG = "Socialmaxxing"
 
@@ -17,6 +19,7 @@ data class Singletons (
     val bluetoothAdapter: BluetoothAdapter,
     val bluetoothLeScanner: BluetoothLeScanner,
     val advertiser: BluetoothLeAdvertiser,
+    val database: AppDatabase,
 )
 
 @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
@@ -33,11 +36,14 @@ fun getSingletons(activity: Activity): Singletons {
 
     val advertiser = bluetoothAdapter.bluetoothLeAdvertiser
 
+    val database = getDb(context)
+
     return Singletons(
         activity = activity,
         bluetoothManager = bluetoothManager,
         bluetoothAdapter = bluetoothAdapter,
         bluetoothLeScanner = bluetoothAdapter.bluetoothLeScanner,
         advertiser = advertiser,
+        database = database,
     )
 }
