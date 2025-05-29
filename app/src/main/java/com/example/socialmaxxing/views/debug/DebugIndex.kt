@@ -88,6 +88,10 @@ fun DebugIndexView(activity: Activity) {
 
         BluetoothButtons(activity, singletons.value, areAllPermissionsAccepted, payload)
 
+        if (singletons.value !== null) {
+            CollectedMessageUtilView(singletons.value!!)
+        }
+
         if (areAllPermissionsAccepted.value) {
             FindDevicesScreen(onConnect = {})
         }

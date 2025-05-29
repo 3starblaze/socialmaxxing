@@ -8,11 +8,13 @@ import androidx.room.Insert
 import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Update
+import kotlinx.coroutines.flow.Flow
 import java.time.LocalDateTime
 
 @Entity
 data class CollectedMessage(
-    @PrimaryKey val uid: Int,
+    @PrimaryKey(autoGenerate = true)
+    val uid: Int,
     // NOTE: The device id of the message's owner
     @ColumnInfo(name = "device_id") val deviceId: Long,
     // NOTE: The datetime that this message was published at and this is the time that should show
@@ -33,5 +35,5 @@ interface CollectedMessageDao {
     fun delete(collectedMessage: CollectedMessage)
 
     @Query("SELECT * from CollectedMessage")
-    fun getAll(): List<CollectedMessage>
+    fun getAll(): Flow<List<CollectedMessage>>
 }

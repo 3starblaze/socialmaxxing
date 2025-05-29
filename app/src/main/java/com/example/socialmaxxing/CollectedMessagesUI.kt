@@ -20,7 +20,9 @@ fun CollectedMessagesView(singletons: Singletons) {
     val messages = remember { mutableStateOf<List<CollectedMessage>?>(null) }
 
     LaunchedEffect(singletons) {
-        messages.value = singletons.database.collectedMessageDao().getAll()
+        singletons.database.collectedMessageDao().getAll().collect {
+            value -> messages.value = value
+        }
     }
 
     Column {
