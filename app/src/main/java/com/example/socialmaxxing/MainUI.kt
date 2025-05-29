@@ -22,7 +22,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.example.socialmaxxing.db.AppDatabase
+import com.example.socialmaxxing.db.SingletonData
+import com.example.socialmaxxing.db.SingletonDataDao
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import java.time.LocalTime
+import kotlin.math.sin
 
 @Composable
 fun Title(text: String) {
@@ -34,15 +41,34 @@ fun Title(text: String) {
 @Composable
 fun MainUIComponent(activity: Activity) {
     val areAllPermissionsAccepted = remember { mutableStateOf(arePermissionsReady(activity)) }
-    var singletons: Singletons? = if (areAllPermissionsAccepted.value)
-        getSingletons(activity)
-        else null
+    val singletons = remember { mutableStateOf<Singletons?>(null) }
 
     val deviceId = 0xdeadbeef
     val time = LocalTime.now()
     val payload = makeBleAdvertisementPayload(time, deviceId)
 
+    val singletonsData = remember { mutableStateOf<SingletonData?>(null)}
+
+    LaunchedEffect(areAllPermissionsAccepted.value) {
+        launch() {
+            singletons.value = getSingletons(activity)
+        }
+    }
+
+    LaunchedEffect(singletons.value) {
+        launch {
+            val db = singletons.value?.database
+            if (db !== null) {
+                singletonsData.value = getSingletonData(db)
+            }
+        }
+    }
+
     Column {
+        if (singletonsData.value !== null) {
+            ThisDeviceMessageSection(singletonsData.value as SingletonData)
+        }
+
         PayloadInfo(payload)
 
         Box(Modifier.padding(0.dp, 8.dp))
@@ -62,7 +88,6 @@ fun MainUIComponent(activity: Activity) {
 
                 areAllPermissionsAccepted.value = arePermissionsReady(activity)
                 if (areAllPermissionsAccepted.value) {
-                    singletons = getSingletons(activity)
                     Toast.makeText(
                         activity,
                         "Everything ok with permissions!",
@@ -77,8 +102,8 @@ fun MainUIComponent(activity: Activity) {
             Text(text = "Ask for bluetooth")
         }
 
-        if (areAllPermissionsAccepted.value and (singletons != null)) {
-            AdvertiseButton(singletons as Singletons, payload)
+        if (singletons.value !== null) {
+            AdvertiseButton(singletons.value as Singletons, payload)
         }
 
         if (areAllPermissionsAccepted.value) FindDevicesScreen(onConnect = {})
@@ -118,6 +143,15 @@ fun AdvertiseButton(singletons: Singletons, payload: BLEAdvertisementPayload) {
             text = "${if (isBLEAdvertisingOn.value) "stop" else "start"} sample BLE advertisement"
         )
     }
+}
+
+suspend fun getSingletonData(database: AppDatabase): SingletonData {
+    return database.singletonDataDao().getData()
+}
+
+@Composable
+fun ThisDeviceMessageSection(singletonData: SingletonData) {
+    Text(text = "msg: ${singletonData.currentMessage}")
 }
 
 fun arePermissionsReady(activity: Activity): Boolean {
