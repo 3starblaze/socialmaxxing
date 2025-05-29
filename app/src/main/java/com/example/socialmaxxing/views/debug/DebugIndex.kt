@@ -1,5 +1,6 @@
-package com.example.socialmaxxing.views
+package com.example.socialmaxxing.views.debug
 
+import android.R
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.pm.PackageManager
@@ -8,14 +9,13 @@ import android.util.Log
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -24,7 +24,6 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.example.socialmaxxing.BLEAdvertisementPayload
 import com.example.socialmaxxing.CollectedMessagesView
@@ -85,53 +84,68 @@ fun DebugIndexView(activity: Activity) {
             CollectedMessagesView(singletons.value!!)
         }
 
-        Column {
-            Text(
-                style = Typography.titleLarge,
-                text = "Bluetooth info"
-            )
+        BluetoothInfo(areAllPermissionsAccepted.value)
 
-            Text(
-                text = if (areAllPermissionsAccepted.value)
-                    "All permissions are granted"
-                else "Permissions needed to be granted"
-            )
-        }
-
-        Column {
-            Text(
-                style = Typography.titleLarge,
-                text = "Bluetooth buttons"
-            )
-
-            Button(
-                enabled = !areAllPermissionsAccepted.value,
-                onClick = {
-                    requestBluetoothPermissions(activity)
-
-                    areAllPermissionsAccepted.value = arePermissionsReady(activity)
-                    if (areAllPermissionsAccepted.value) {
-                        Toast.makeText(
-                            activity,
-                            "Everything ok with permissions!",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                        Log.d(TAG, "bluetooth permissions are ok!")
-                    } else {
-                        Log.d(TAG, "couldn't retrieve singletons, handle this gracefully!")
-                    }
-                },
-            ) {
-                Text(text = "Ask for bluetooth")
-            }
-
-            if (singletons.value !== null) {
-                AdvertiseButton(singletons.value as Singletons, payload)
-            }
-        }
+        BluetoothButtons(activity, singletons.value, areAllPermissionsAccepted, payload)
 
         if (areAllPermissionsAccepted.value) {
             FindDevicesScreen(onConnect = {})
+        }
+    }
+}
+
+@Composable
+fun BluetoothInfo(areAllPermissionsAccepted: Boolean) {
+    Column {
+        Text(
+            style = Typography.titleLarge,
+            text = "Bluetooth info"
+        )
+
+        Text(
+            text = if (areAllPermissionsAccepted)
+                "All permissions are granted"
+            else "Permissions needed to be granted"
+        )
+    }
+}
+
+@Composable
+fun BluetoothButtons(
+    activity: Activity,
+    singletons: Singletons?,
+    areAllPermissionsAccepted: MutableState<Boolean>,
+    payload: BLEAdvertisementPayload,
+) {
+    Column {
+        Text(
+            style = Typography.titleLarge,
+            text = "Bluetooth buttons"
+        )
+
+        Button(
+            enabled = !areAllPermissionsAccepted.value,
+            onClick = {
+                requestBluetoothPermissions(activity)
+
+                areAllPermissionsAccepted.value = arePermissionsReady(activity)
+                if (areAllPermissionsAccepted.value) {
+                    Toast.makeText(
+                        activity,
+                        "Everything ok with permissions!",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    Log.d(TAG, "bluetooth permissions are ok!")
+                } else {
+                    Log.d(TAG, "couldn't retrieve singletons, handle this gracefully!")
+                }
+            },
+        ) {
+            Text(text = "Ask for bluetooth")
+        }
+
+        if (singletons !== null) {
+            AdvertiseButton(singletons, payload)
         }
     }
 }
