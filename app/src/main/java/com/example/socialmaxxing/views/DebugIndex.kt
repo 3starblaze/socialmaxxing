@@ -1,6 +1,5 @@
-package com.example.socialmaxxing
+package com.example.socialmaxxing.views
 
-import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.pm.PackageManager
@@ -8,7 +7,6 @@ import android.os.Build
 import android.util.Log
 import android.widget.Toast
 import androidx.annotation.RequiresApi
-import androidx.annotation.RequiresPermission
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
@@ -26,14 +24,21 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.example.socialmaxxing.BLEAdvertisementPayload
+import com.example.socialmaxxing.CollectedMessagesView
+import com.example.socialmaxxing.FindDevicesScreen
+import com.example.socialmaxxing.Singletons
+import com.example.socialmaxxing.TAG
 import com.example.socialmaxxing.db.AppDatabase
 import com.example.socialmaxxing.db.SingletonData
-import com.example.socialmaxxing.db.SingletonDataDao
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.coroutineScope
+import com.example.socialmaxxing.getSingletons
+import com.example.socialmaxxing.makeBleAdvertisementPayload
+import com.example.socialmaxxing.requestBluetoothPermissions
+import com.example.socialmaxxing.requiredPermissions
+import com.example.socialmaxxing.startAdvertising
+import com.example.socialmaxxing.stopAdvertising
 import kotlinx.coroutines.launch
 import java.time.LocalTime
-import kotlin.math.sin
 
 @Composable
 fun Title(text: String) {
@@ -43,7 +48,7 @@ fun Title(text: String) {
 @RequiresApi(Build.VERSION_CODES.O)
 @SuppressLint("MissingPermission")
 @Composable
-fun MainUIComponent(activity: Activity) {
+fun DebugIndexView(activity: Activity) {
     val areAllPermissionsAccepted = remember { mutableStateOf(arePermissionsReady(activity)) }
     val singletons = remember { mutableStateOf<Singletons?>(null) }
 
