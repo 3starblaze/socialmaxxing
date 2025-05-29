@@ -8,9 +8,21 @@ import android.os.Build
 import android.util.Log
 import android.widget.Toast
 import androidx.annotation.RequiresApi
+import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -20,6 +32,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
@@ -41,6 +55,7 @@ import com.example.socialmaxxing.stopAdvertising
 import com.example.socialmaxxing.ui.theme.Typography
 import kotlinx.coroutines.launch
 import java.time.LocalTime
+import java.util.concurrent.locks.Lock
 
 @RequiresApi(Build.VERSION_CODES.O)
 @SuppressLint("MissingPermission")
@@ -71,7 +86,11 @@ fun DebugIndexView(activity: Activity) {
     }
 
     Column(
-        Modifier.padding(8.dp, 8.dp),
+        Modifier
+            .padding(8.dp, 8.dp)
+            .verticalScroll(rememberScrollState())
+            .fillMaxSize()
+        ,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         if (singletonsData.value !== null) {
@@ -81,19 +100,36 @@ fun DebugIndexView(activity: Activity) {
         PayloadInfo(payload)
 
         if (singletons.value !== null) {
-            CollectedMessagesView(singletons.value!!)
+            LockHeight {
+                CollectedMessagesView(singletons.value!!)
+            }
+
+            CollectedMessageUtilView(singletons.value!!)
         }
 
         BluetoothInfo(areAllPermissionsAccepted.value)
 
         BluetoothButtons(activity, singletons.value, areAllPermissionsAccepted, payload)
 
-        if (singletons.value !== null) {
-            CollectedMessageUtilView(singletons.value!!)
-        }
-
         if (areAllPermissionsAccepted.value) {
-            FindDevicesScreen(onConnect = {})
+            LockHeight {
+                FindDevicesScreen(onConnect = {})
+            }
+        }
+    }
+}
+
+// NOTE: This is needed to prevent the app from crashing because of nested scrollables
+@SuppressLint("UnusedBoxWithConstraintsScope")
+@Composable
+fun LockHeight(content: @Composable() () -> Unit) {
+    val configuration = LocalConfiguration.current
+
+    // HACK: Hardcoded 0.5 of the screen. The better choice would be something like 90% of the
+    // available space but at least this works.
+    BoxWithConstraints {
+        Box(modifier = Modifier.heightIn(0.dp, configuration.screenHeightDp.dp * 0.5f)) {
+            content()
         }
     }
 }
