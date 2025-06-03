@@ -43,7 +43,7 @@ abstract class AppDatabase : RoomDatabase() {
 fun generateSingletonData(): SingletonData {
     return SingletonData(
         uid = 0,
-        currentMessage = "",
+        currentMessage = "test_message",
         deviceId = ThreadLocalRandom.current().nextLong(),
         updatedAt = LocalDateTime.now(),
     )

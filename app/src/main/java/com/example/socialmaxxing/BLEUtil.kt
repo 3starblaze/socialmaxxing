@@ -52,11 +52,10 @@
     import androidx.lifecycle.Lifecycle
     import androidx.lifecycle.LifecycleEventObserver
     import androidx.lifecycle.LifecycleOwner
+    import com.example.socialmaxxing.db.SingletonData
     import kotlinx.coroutines.delay
     import java.lang.Long
     import java.nio.ByteBuffer
-    import java.time.LocalDate
-    import java.time.LocalDateTime
     import java.time.LocalTime
     import kotlin.Byte
     import kotlin.ByteArray
@@ -213,8 +212,12 @@
         Manifest.permission.BLUETOOTH_CONNECT,
     ])
     @Composable
-    internal fun FindDevicesScreen(onConnect: (BluetoothDevice) -> Unit,
-                                   deviceOwnerPayload: BLEAdvertisementPayload) {
+    internal fun FindDevicesScreen(
+        onConnect: (BluetoothDevice) -> Unit,
+        deviceOwnerPayload: BLEAdvertisementPayload,
+        singletons: Singletons?,
+        singletonData: SingletonData?
+    ) {
         var scanning by remember {
             mutableStateOf(true)
         }
@@ -294,15 +297,6 @@
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                val sortedDeviceList = if (itemsToDisplay.isEmpty()) {
-                    emptyList<DisplayItem>()
-                } else {
-                    itemsToDisplay.values
-                        .sortedBy {
-                            payloadTimestampToLocalTime(it.appPayload!!.timestamp.toByteArray()) ?: LocalTime.MAX
-                        }
-                }
-
                 if (itemsToDisplay.isEmpty()) {
                     item {
                         Text(text = "No devices found")
@@ -310,7 +304,7 @@
                 }
 
                 // FIXME: manufacturer data content not really visible
-                items(sortedDeviceList) { item ->
+                items(itemsToDisplay.values.toList()) { item ->
                     Column() {
                         Row(
                             modifier = Modifier
@@ -337,8 +331,10 @@
                     }
                 }
 
-                 // decideSwapOrder(sortedDeviceList, deviceOwnerPayload)
-                // swapMessages(deviceOwnerPayload, item.appPayload)
+                 // So we don't freeze the UI
+                Thread {
+                    swapMessages(itemsToDisplay.values.toList(), deviceOwnerPayload, singletons, singletonData)
+                }.start()
             }
         }
 
