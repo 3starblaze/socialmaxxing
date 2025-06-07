@@ -5,7 +5,16 @@ import android.app.Activity
 import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothGatt
+import android.bluetooth.BluetoothGattCallback
+import android.bluetooth.BluetoothGattCharacteristic
+import android.bluetooth.BluetoothGattServer
+import android.bluetooth.BluetoothGattServerCallback
+import android.bluetooth.BluetoothGattService
+import android.bluetooth.BluetoothManager
+import android.bluetooth.BluetoothProfile
 import android.bluetooth.BluetoothSocket
+import android.content.Context
 import android.util.Log
 import androidx.annotation.RequiresPermission
 import com.example.socialmaxxing.db.CollectedMessage
@@ -29,6 +38,169 @@ fun requestBluetoothPermissions(activity: Activity) {
     ActivityCompat.requestPermissions(activity, requiredPermissions, REQUEST_ENABLE_BLUETOOTH)
 }
 
+@SuppressLint("MissingPermission")
+class SimpleBLEMessageExchange(private val context: Context) {
+
+    companion object {
+        private const val SERVICE_UUID = "12345678-1234-1234-1234-123456789abc"
+        private const val MESSAGE_CHAR_UUID = "87654321-4321-4321-4321-cba987654321"
+    }
+
+    private val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+    private val bluetoothAdapter = bluetoothManager.adapter
+
+    // Server variables
+    private var gattServer: BluetoothGattServer? = null
+    private var serverMessage = ""
+
+    // Client variables
+    private var gattClient: BluetoothGatt? = null
+    private var messageCharacteristic: BluetoothGattCharacteristic? = null
+    private var clientMessage = ""
+
+    // Callbacks
+    var onMessageReceived: ((String) -> Unit)? = null
+    var onConnectionStateChanged: ((Boolean) -> Unit)? = null
+    var onExchangeComplete: ((myMessage: String, theirMessage: String) -> Unit)? = null
+
+    // ======================
+    // SERVER IMPLEMENTATION
+    // ======================
+
+    fun startServer(message: String) {
+        serverMessage = message
+
+        // Create GATT server
+        gattServer = bluetoothManager.openGattServer(context, serverCallback)
+
+        // Create service
+        val service = BluetoothGattService(
+            UUID.fromString(SERVICE_UUID),
+            BluetoothGattService.SERVICE_TYPE_PRIMARY
+        )
+
+        // Create characteristic
+        val characteristic = BluetoothGattCharacteristic(
+            UUID.fromString(MESSAGE_CHAR_UUID),
+            BluetoothGattCharacteristic.PROPERTY_READ or BluetoothGattCharacteristic.PROPERTY_WRITE,
+            BluetoothGattCharacteristic.PERMISSION_READ or BluetoothGattCharacteristic.PERMISSION_WRITE
+        )
+
+        service.addCharacteristic(characteristic)
+        gattServer?.addService(service)
+    }
+
+    private val serverCallback = object : BluetoothGattServerCallback() {
+        override fun onConnectionStateChange(device: BluetoothDevice, status: Int, newState: Int) {
+            onConnectionStateChanged?.invoke(newState == BluetoothProfile.STATE_CONNECTED)
+        }
+
+        override fun onCharacteristicReadRequest(
+            device: BluetoothDevice, requestId: Int, offset: Int,
+            characteristic: BluetoothGattCharacteristic
+        ) {
+            gattServer?.sendResponse(
+                device, requestId, BluetoothGatt.GATT_SUCCESS,
+                offset, serverMessage.toByteArray()
+            )
+        }
+
+        override fun onCharacteristicWriteRequest(
+            device: BluetoothDevice, requestId: Int,
+            characteristic: BluetoothGattCharacteristic, preparedWrite: Boolean,
+            responseNeeded: Boolean, offset: Int, value: ByteArray
+        ) {
+            val theirMessage = String(value)
+            Log.d("BLE", "SERVER: Received client message: $theirMessage")
+
+            // MESSAGE EXCHANGE COMPLETE - Server has their message, client has our message
+            onExchangeComplete?.invoke(serverMessage, theirMessage)
+
+            if (responseNeeded) {
+                gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, null)
+            }
+        }
+    }
+
+
+
+    // ======================
+    // CLIENT IMPLEMENTATION
+    // ======================
+
+    fun connectAsClient(device: BluetoothDevice, messageToSend: String) {
+        clientMessage = messageToSend
+        gattClient = device.connectGatt(context, false, clientCallback)
+    }
+
+    private val clientCallback = object : BluetoothGattCallback() {
+        override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
+            if (newState == BluetoothProfile.STATE_CONNECTED) {
+                onConnectionStateChanged?.invoke(true)
+                gatt.discoverServices()
+            } else {
+                onConnectionStateChanged?.invoke(false)
+            }
+        }
+
+        override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                val service = gatt.getService(UUID.fromString(SERVICE_UUID))
+                messageCharacteristic = service?.getCharacteristic(UUID.fromString(MESSAGE_CHAR_UUID))
+
+                // First read the server's message
+                messageCharacteristic?.let { gatt.readCharacteristic(it) }
+            }
+        }
+
+        override fun onCharacteristicRead(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                val theirMessage = String(characteristic.value)
+                serverMessage = theirMessage // Store their message
+                Log.d("BLE", "CLIENT: Read server message: $theirMessage")
+
+                // Now send our message back to complete the exchange
+                sendClientMessage()
+            }
+        }
+
+        override fun onCharacteristicWrite(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                Log.d("BLE", "CLIENT: Successfully sent our message")
+
+                // MESSAGE EXCHANGE COMPLETE - We sent our message, we already have theirs
+                onExchangeComplete?.invoke(clientMessage, serverMessage) // Use stored server message
+            }
+            // Disconnect after exchange
+            disconnect()
+        }
+    }
+
+    private fun sendClientMessage() {
+        messageCharacteristic?.let { char ->
+            char.value = clientMessage.toByteArray() // Send our message
+            gattClient?.writeCharacteristic(char)
+        }
+    }
+
+    // ======================
+    // CLEANUP
+    // ======================
+
+    fun stopServer() {
+        gattServer?.close()
+        gattServer = null
+    }
+
+    fun disconnect() {
+        gattClient?.disconnect()
+        gattClient?.close()
+        gattClient = null
+    }
+}
+
+
+
 /**
  * Function for handling message exchange between two devices
 */
@@ -37,98 +209,51 @@ fun handleConnection(
     singletons: Singletons?,
     singletonData: SingletonData?,
     isSender: Boolean,
-    uuid: UUID,
     otherDeviceData: DisplayItem
 ) {
-    Log.d(TAG, "We at the start of handleConnection")
-    var socket : BluetoothSocket? = null
-    try {
-        Log.d(TAG, "Current message: ${singletonData!!.currentMessage}")
+    val bleExchange = SimpleBLEMessageExchange(singletons!!.activity.applicationContext)
 
-        if (singletons!!.bluetoothAdapter.isDiscovering) {
-            Log.d(TAG, "Stopping Bluetooth discovery...")
-            singletons.bluetoothAdapter.cancelDiscovery()
-            Thread.sleep(1000) // Give it time to stop
-        }
-
-        socket = if (isSender) {
-            Thread.sleep(3000)
-            val deviceAddress = otherDeviceData.device.getAddress()
-            val classicDevice: BluetoothDevice = singletons.bluetoothAdapter.getRemoteDevice(deviceAddress)
-
-            Log.d(TAG, "=== Connection Debug Info ===")
-            Log.d(TAG, "Target device address: ${classicDevice.address}")
-            Log.d(TAG, "Target device name: ${classicDevice.name}")
-
-
-            Log.d(TAG, "Target device type: ${classicDevice.type}") // Should be CLASSIC or DUAL
-                                                            // TODO: Figure out why it isn't (currently DEVICE_TYPE_UNKNOWN)
-                                                            //  gpt says this might be the problem
-            Log.d(TAG, "Target device bond state: ${classicDevice.bondState}")
-            Log.d(TAG, "UUID: $uuid")
-            Log.d(TAG, "Local adapter enabled: ${singletons!!.bluetoothAdapter.isEnabled}")
-
-            Log.d(TAG, "Connecting to (BLE) device: ${otherDeviceData.device.address}")
-            Log.d(TAG, "Connecting to (classic) device: ${classicDevice.address}")
-            classicDevice.createInsecureRfcommSocketToServiceRecord(uuid).apply {
-                connect() // Fails pretty quickly
-            }
-        } else {
-            val listenerSocket = singletons.bluetoothAdapter
-                .listenUsingInsecureRfcommWithServiceRecord("Test_name", uuid)
-
-            listenerSocket.accept(30000) // 30s timeout
-            // Times out
-        }
-
-        Log.d(TAG, "Socket stuff supposedly done")
-
-        val outputStream = socket.outputStream
-        val inputStream = socket.inputStream
-
-
-        outputStream.write(singletonData.currentMessage.toByteArray())
-        outputStream.flush()
-
-        Log.d(TAG, "Wrote and flushed")
-
-        val buffer = ByteArray(1024)
-        val bytesRead = inputStream.read(buffer)
-        val receivedMessage = String(buffer, 0, bytesRead)
-
-        Log.d(TAG,"Received message: $receivedMessage")
-        // FIXME: the advertisement itself should be a LocalDateTime instead of just LocalTime
-        //      This is a (hopefully) temporary fix just for testing purposes
+    bleExchange.onExchangeComplete = { myMessage, theirMessage ->
+        Log.d("BLE", "EXCHANGE COMPLETE!")
+        Log.d("BLE", "My message: $myMessage")
+        Log.d("BLE", "Their message: $theirMessage")
+        // Save to database here
+        // singletons?.database?.collectedMessageDao()?.insert(...)
         val time: LocalTime = payloadTimestampToLocalTime(otherDeviceData.appPayload!!.timestamp.toByteArray())
         val date: LocalDate = LocalDate.now()
         val dateTime: LocalDateTime = LocalDateTime.of(date, time)
 
-        singletons!!.database.collectedMessageDao().insertAll(
+        singletons.database.collectedMessageDao().insertAll(
             CollectedMessage(
                 uid = 0,
                 deviceId = bytesToLong(otherDeviceData.appPayload.deviceId.toByteArray()),
                 officialDatetime = dateTime,
                 actualDatetime = LocalDateTime.now(),
-                messageText = receivedMessage,
+                messageText = theirMessage,
             )
         )
         Log.d(TAG,"Inserted into database")
+    }
 
+    bleExchange.onConnectionStateChanged = { isConnected ->
+        Log.d("BLE", "Connection state: $isConnected")
+    }
 
-    } catch (e: Exception) {
-        Log.e(TAG, "Connection failed: ${e.message}", e)
-    } finally {
-        socket?.close()
+    if (isSender) {
+        Thread.sleep(3000)
+        // Connect as client to get their message and send ours
+        val device = otherDeviceData.device // Assuming you have the BluetoothDevice
+//        val myMessage = singletonData!!.currentMessage
+        val myMessage = "Sender says hello2"
+        bleExchange.connectAsClient(device, myMessage)
+    } else {
+        // Start server and wait for connection
+//        val myMessage = singletonData!!.currentMessage
+        val myMessage = "Listener says hello2"
+        bleExchange.startServer(myMessage)
     }
 }
 
-// TODO:
-//  Datubāzes ierakstā jābūt:
-//      deviceId, -- ierīces, ar kuru mēs apmainījāmies, id
-//      deviceTimestamp, -- ierīces, ar kuru mēs apmainījāmies,
-//                          timestamp / kad tajā ierīcē pēdējoreiz updatoja message
-//      messageExchangeTimestamp -- kad šīs divas ierīces veica apmaiņu
-//      message -- pati ziņa, ko mēs tad ieguvām
 @SuppressLint("MissingPermission")
 fun swapMessages(
     displayItems: List<DisplayItem>,
@@ -149,20 +274,25 @@ fun swapMessages(
 
         if (existingMessage != null) {
             // We've already exchanged this message, skip
+            Log.d(TAG, "We already have swapped with $otherDeviceId, skipping")
             return@forEach
         }
 
         var isSender = deviceOwnerTimestamp < otherDeviceTimestamp
+//        Log.d(TAG, "Manually setting device to sender")
+//        isSender = true // This is manually adjusted between installing for each device
+
         Log.d(TAG, "Manually setting device to listener")
         isSender = false // This is manually adjusted between installing for each device
+
         val deviceIds = listOf(bytesToLong(deviceOwnerPayload.deviceId.toByteArray()), otherDeviceId).sorted()
 //        val uuid = nameUUIDFromBytes((longToBytes(deviceIds[0]) + longToBytes(deviceIds[1])))
-        val test_uuid_string = "test_uuid"
-        val uuid = nameUUIDFromBytes(test_uuid_string.toByteArray())
+//        val test_uuid_string = "test_uuid"
+//        val uuid = nameUUIDFromBytes(test_uuid_string.toByteArray())
 
         if (isSender) Log.d(TAG, "This device is sender")
         else Log.d(TAG, "This device is listener")
 
-        handleConnection(singletons, singletonData, isSender, uuid, item)
+        handleConnection(singletons, singletonData, isSender, item)
     }
 }

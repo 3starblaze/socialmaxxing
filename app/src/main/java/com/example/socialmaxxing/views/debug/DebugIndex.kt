@@ -56,8 +56,8 @@ fun DebugIndexView(activity: Activity) {
     val singletons = remember { mutableStateOf<Singletons?>(null) }
 
     // This can be ignored, I'm just swapping the ids out between devices -R
-    val deviceId = 0xdeadbeef
-//    val deviceId = 0xbeeeeeef
+//    val deviceId = 0xdeadbeef
+    val deviceId = 0xbeeeeeef
     val time = LocalTime.now()
     val payload = makeBleAdvertisementPayload(time, deviceId)
 
