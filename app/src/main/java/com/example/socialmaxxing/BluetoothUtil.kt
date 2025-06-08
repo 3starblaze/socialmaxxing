@@ -47,7 +47,6 @@ class SimpleBLEMessageExchange(private val context: Context) {
     }
 
     private val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-    private val bluetoothAdapter = bluetoothManager.adapter
 
     // Server variables
     private var gattServer: BluetoothGattServer? = null
@@ -59,7 +58,6 @@ class SimpleBLEMessageExchange(private val context: Context) {
     private var clientMessage = ""
 
     // Callbacks
-    var onMessageReceived: ((String) -> Unit)? = null
     var onConnectionStateChanged: ((Boolean) -> Unit)? = null
     var onExchangeComplete: ((myMessage: String, theirMessage: String) -> Unit)? = null
 
@@ -217,8 +215,7 @@ fun handleConnection(
         Log.d("BLE", "EXCHANGE COMPLETE!")
         Log.d("BLE", "My message: $myMessage")
         Log.d("BLE", "Their message: $theirMessage")
-        // Save to database here
-        // singletons?.database?.collectedMessageDao()?.insert(...)
+
         val time: LocalTime = payloadTimestampToLocalTime(otherDeviceData.appPayload!!.timestamp.toByteArray())
         val date: LocalDate = LocalDate.now()
         val dateTime: LocalDateTime = LocalDateTime.of(date, time)
@@ -239,17 +236,14 @@ fun handleConnection(
         Log.d("BLE", "Connection state: $isConnected")
     }
 
+    val myMessage = singletonData!!.currentMessage
     if (isSender) {
         Thread.sleep(3000)
         // Connect as client to get their message and send ours
         val device = otherDeviceData.device // Assuming you have the BluetoothDevice
-//        val myMessage = singletonData!!.currentMessage
-        val myMessage = "Sender says hello2"
         bleExchange.connectAsClient(device, myMessage)
     } else {
         // Start server and wait for connection
-//        val myMessage = singletonData!!.currentMessage
-        val myMessage = "Listener says hello2"
         bleExchange.startServer(myMessage)
     }
 }
@@ -262,8 +256,6 @@ fun swapMessages(
     singletonData: SingletonData?
 ) {
     val deviceOwnerTimestamp = payloadTimestampToLocalTime(deviceOwnerPayload.timestamp.toByteArray())
-
-//    val allMessages = singletons!!.database.collectedMessageDao().getAll().first()
 
     displayItems.forEach { item ->
         val otherDeviceTimestamp = payloadTimestampToLocalTime(item.appPayload!!.timestamp.toByteArray())
@@ -279,16 +271,6 @@ fun swapMessages(
         }
 
         var isSender = deviceOwnerTimestamp < otherDeviceTimestamp
-//        Log.d(TAG, "Manually setting device to sender")
-//        isSender = true // This is manually adjusted between installing for each device
-
-        Log.d(TAG, "Manually setting device to listener")
-        isSender = false // This is manually adjusted between installing for each device
-
-        val deviceIds = listOf(bytesToLong(deviceOwnerPayload.deviceId.toByteArray()), otherDeviceId).sorted()
-//        val uuid = nameUUIDFromBytes((longToBytes(deviceIds[0]) + longToBytes(deviceIds[1])))
-//        val test_uuid_string = "test_uuid"
-//        val uuid = nameUUIDFromBytes(test_uuid_string.toByteArray())
 
         if (isSender) Log.d(TAG, "This device is sender")
         else Log.d(TAG, "This device is listener")
