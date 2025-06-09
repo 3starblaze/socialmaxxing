@@ -4,12 +4,14 @@ import android.Manifest
 import android.app.Activity
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
+import android.bluetooth.BluetoothServerSocket
 import android.bluetooth.le.BluetoothLeAdvertiser
 import android.bluetooth.le.BluetoothLeScanner
 import android.content.Intent
 import androidx.annotation.RequiresPermission
 import com.example.socialmaxxing.db.AppDatabase
 import com.example.socialmaxxing.db.getDb
+import java.util.UUID.nameUUIDFromBytes
 
 val TAG = "Socialmaxxing"
 

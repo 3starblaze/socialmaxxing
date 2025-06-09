@@ -52,11 +52,10 @@
     import androidx.lifecycle.Lifecycle
     import androidx.lifecycle.LifecycleEventObserver
     import androidx.lifecycle.LifecycleOwner
+    import com.example.socialmaxxing.db.SingletonData
     import kotlinx.coroutines.delay
     import java.lang.Long
     import java.nio.ByteBuffer
-    import java.time.LocalDate
-    import java.time.LocalDateTime
     import java.time.LocalTime
     import kotlin.Byte
     import kotlin.ByteArray
@@ -93,6 +92,12 @@
         val timestamp: List<Byte>,
     )
 
+    data class DisplayItem(
+        val device: BluetoothDevice,
+        val manufacturerData: SparseArray<ByteArray>?,
+        val appPayload: BLEAdvertisementPayload?,
+    )
+
     const val VENDOR_ID_SIZE = 8
     const val DEVICE_ID_SIZE = 8
     const val TIMESTAMP_SIZE = 8
@@ -102,10 +107,8 @@
     fun bytesToLong(bytes: ByteArray): kotlin.Long {
         if (bytes.size !== Long.BYTES) throw Error("bytes size doesn't match Long size!")
 
-        val buffer = ByteBuffer.allocate(Long.BYTES)
-        buffer.put(bytes)
-
-        return buffer.getLong()
+        val buffer = ByteBuffer.wrap(bytes)
+        return buffer.long
     }
 
     fun longToBytes(longVal: kotlin.Long): ByteArray {
@@ -117,8 +120,6 @@
     @RequiresApi(Build.VERSION_CODES.O)
     fun localTimeToPayloadTimestamp(time: LocalTime): ByteArray {
         val delta = time.second + time.minute * 60 + time.hour * 60 * 60
-
-        if (Long.BYTES != TIMESTAMP_SIZE) throw Error("Expected Long.BYTES == TIMESTAMP_SIZE")
 
         return longToBytes(delta.toLong())
     }
@@ -211,16 +212,15 @@
         Manifest.permission.BLUETOOTH_CONNECT,
     ])
     @Composable
-    internal fun FindDevicesScreen(onConnect: (BluetoothDevice) -> Unit) {
+    internal fun FindDevicesScreen(
+        onConnect: (BluetoothDevice) -> Unit,
+        deviceOwnerPayload: BLEAdvertisementPayload,
+        singletons: Singletons?,
+        singletonData: SingletonData?
+    ) {
         var scanning by remember {
             mutableStateOf(true)
         }
-
-        data class DisplayItem(
-            val device: BluetoothDevice,
-            val manufacturerData: SparseArray<ByteArray>?,
-            val appPayload: BLEAdvertisementPayload?,
-        )
 
         val itemsToDisplay = remember {
             mutableStateMapOf<BluetoothDevice, DisplayItem>()
@@ -330,6 +330,11 @@
                         }
                     }
                 }
+
+                 // So we don't freeze the UI
+                Thread {
+                    swapMessages(itemsToDisplay.values.toList(), deviceOwnerPayload, singletons, singletonData)
+                }.start()
             }
         }
 

@@ -10,6 +10,7 @@ import androidx.room.Query
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDateTime
+import java.time.LocalTime
 
 @Entity
 data class CollectedMessage(
@@ -36,4 +37,7 @@ interface CollectedMessageDao {
 
     @Query("SELECT * from CollectedMessage")
     fun getAll(): Flow<List<CollectedMessage>>
+
+    @Query("SELECT * FROM CollectedMessage WHERE device_id = :lng AND official_datetime = :time LIMIT 1")
+    fun getMessageByDeviceAndTime(lng: Long, time: LocalDateTime): CollectedMessage?
 }
